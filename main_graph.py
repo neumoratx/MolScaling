@@ -65,7 +65,7 @@ def get_num_task(dataset):
     # Get output dimensions of different tasks
     if dataset == 'tox21':
         return 12
-    elif dataset in ['hiv', 'bace', 'bbbp']:
+    elif dataset in ['hiv', 'bace', 'bbbp', 'mdck']:
         return 1
     elif dataset == 'muv':
         return 17

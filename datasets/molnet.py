@@ -263,7 +263,7 @@ class MoleculeDataset(InMemoryDataset):
 
     def get(self, idx):
         data = Data()
-        for key in self.data.keys:
+        for key in self.data.keys():
             item, slices = self.data[key], self.slices[key]
             s = list(repeat(slice(None), item.dim()))
             s[data.__cat_dim__(key, item)] = slice(slices[idx], slices[idx + 1])
@@ -421,7 +421,27 @@ class MoleculeDataset(InMemoryDataset):
                 data.y = torch.tensor([labels[i]])
                 data_list.append(data)
                 data_smiles_list.append(smiles_list[i])
-
+                
+        elif self.dataset == 'mdck':
+            smiles_list, rdkit_mol_objs, labels = \
+                _load_mdck_dataset(self.raw_paths[0])
+            input_ids = self.input_ids
+            mask = self.mask
+            for i in range(len(smiles_list)):
+                print(i)
+                rdkit_mol = rdkit_mol_objs[i]
+                # # convert aromatic bonds to double bonds
+                # Chem.SanitizeMol(rdkit_mol,
+                #                  sanitizeOps=Chem.SanitizeFlags.SANITIZE_KEKULIZE)
+                data = mol_to_graph_data_obj_simple(rdkit_mol)
+                # manually add mol id
+                data.id = torch.tensor([i])  # id here is the index of the mol in the dataset
+                fingerprint = np.array(GetMorganFingerprintAsBitVect(rdkit_mol, 2, nBits=1024))
+                data.fingerprint = torch.tensor(fingerprint, dtype = torch.float).unsqueeze(0)
+                # ===================================================================
+                data.y = torch.tensor([labels[i]])
+                data_list.append(data)
+                data_smiles_list.append(smiles_list[i])
 
         elif self.dataset == 'muv':
             smiles_list, rdkit_mol_objs, labels = \
@@ -507,12 +527,25 @@ def _load_tox21_dataset(input_path):
 
 def _load_hiv_dataset(input_path):
     input_df = pd.read_csv(input_path, sep=',')
+    print(input_path)
     smiles_list = input_df['smiles']
     rdkit_mol_objs_list = [AllChem.MolFromSmiles(s) for s in smiles_list]
     labels = input_df['HIV_active']
     # convert 0 to -1
     labels = labels.replace(0, -1)
     # there are no nans
+    assert len(smiles_list) == len(rdkit_mol_objs_list)
+    assert len(smiles_list) == len(labels)
+    return smiles_list, rdkit_mol_objs_list, labels.to_numpy()
+
+def _load_mdck_dataset(input_path):
+    input_df = pd.read_csv(input_path, sep=',')
+    input_df = input_df.loc[~input_df['LOG MDR1-MDCK ER (B-A/A-B)'].isna()]
+    input_df.index = range(input_df.shape[0])
+    smiles_list = input_df['SMILES']
+    rdkit_mol_objs_list = [AllChem.MolFromSmiles(s) for s in smiles_list]
+    labels = input_df['LOG MDR1-MDCK ER (B-A/A-B)']
+
     assert len(smiles_list) == len(rdkit_mol_objs_list)
     assert len(smiles_list) == len(labels)
     return smiles_list, rdkit_mol_objs_list, labels.to_numpy()
